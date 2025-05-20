@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cli</title>
+    <style>
+        * {
+            background-color: black;
+            color: lightseagreen;
+            font-size: 1rem;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        .line {
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            font-style: italic;
+        }
+        .error {
+            color: lightcoral;
+
+        }
+        .answer {
+            color: lightskyblue;
+        }
+        #prompt {
+            width: 100%;
+        }
+        #cursor {
+            width: fit-content;
+
+        }
+        #input {
+            border: 0;
+            outline-style: none;
+            cursor: default;
+            width: 60%;
+        }
+    </style>
+    <script>
+        const JScli = Object.freeze({
+            /**
+             * 
+             * @param {HTMLInputElement} inputEl html element that represents the cli input
+             * @param {HTMLElement} outputEl html element that represents the cli output
+             * @param {HTMLElement} cursoEl html element that represents the cli cursor
+             * @param {Array< {command : String, func : Function} >} commands 
+             * @returns {{}} cli object
+             */
+            create(inputEl, outputEl, cursoEl, cursorRepresentation, commands) {
+
+                return Object.seal({
+                    paramsSeparator: "#",
+                    cursorSymbol: cursorRepresentation,
+                    inputEl: inputEl,
+                    outputEl: outputEl,
+                    cursoEl: cursoEl,
+                    commandStack: [],
+                    commandStackIndex: 0,
+                    commands: commands,
+                    cursorInterval: null,
+                    mainFuncRef: null,
+                    setCursorSymbol(cursorSymbol) {
+                        this.cursorSymbol = cursorSymbol
+                    },
+                    /**
+                     * Clear the cli output
+                     */
+                    clear() {
+                        this.outputEl.innerHTML = ""
+                    },
+
+                    /**
+                     * Close the browser tab where the cli is running
+                     */
+                    exit() {
+                        window.close()
+                    },
+
+                    /**
+                     * Prints a content in a cli output as a new line
+                     * @param {String} content 
+                     */
+                    printLn(content) {
+                        const line = document.createElement("p")
+                        line.classList.add("line", "answer")
+                        line.innerText = `${cursoEl.innerText} ${content}`
+                        this.outputEl.append(line)
+                    },
+                    /**
+                     * Prints error messages in cli output
+                     * @param {String} errorMessage Error message to be printed
+                     */
+                    printError(errorMessage) {
+                        const line = document.createElement("p")
+                        line.classList.add("line", "error")
+                        line.innerText = `${cursoEl.innerText} ${errorMessage}`
+                        this.outputEl.append(line)
+                    },
+                    /**
+                     * 
+                     * @param {Promise} promise 
+                     * @returns {Promisse}
+                     */
+                    promiseExecHandle(promise) {
+                        return promise.then(resolved => {
+                            this.execHandle(resolved)
+                        }).catch(error => {
+                            console.log(error)
+                            console.log("catch")
+                            this.printError(error.message)
+                        })
+                    },
+                    execHandle(result) {
+                        if (result instanceof Array) {
+                            for (let r of result) {
+                                this.printLn(r)
+                            }
+                            return result
+                        }
+                        if (result !== null) {
+                            this.printLn(result)
+                            return result
+                        }
+                        return result
+                    },
+                    exec() {
+                        const input = inputEl.value.trim().split(this.paramsSeparator)
+                        for (let i = 0; i < input.length; i++) input[i] = input[i].trim() // cleaning the inputs
+                        const [command, ...params] = input
+                        this.commandStack.push(inputEl.value)
+                        this.commandStackIndex = this.commandStack.length - 1
+                        this.printLn(inputEl.value)
+                        this.inputEl.value = ""
+                        try {
+                            switch (command) {
+                                case "clear":
+                                    return this.clear()
+                                case "exit":
+                                    return this.exit()
+                            }
+                            for (let obj of this.commands) {
+                                if (obj.command === command) {
+                                    const result = obj.func(params)
+                                    if (result instanceof Promise) {
+                                        return this.promiseExecHandle(result)
+                                    }
+                                    return this.execHandle(result)
+                                }
+                            }
+                            throw new Error("Invalid command!")
+                        } catch (error) {
+                            console.log(error)
+                            this.printError(error.message)
+                        }
+                    },
+                    active() {
+                        this.cursoEl.innerText = this.cursorSymbol
+                        this.mainFuncRef = (e) => {
+                            const key = e.key || e.code
+                            if (this.commandStack.length > 0) {
+                                if (key === "ArrowUp") {
+                                    this.inputEl.value = this.commandStack[this.commandStackIndex]
+                                    this.commandStackIndex <= 0 ? this.commandStackIndex = 0 : this.commandStackIndex--
+                                    setTimeout(() => this.inputEl.setSelectionRange(this.inputEl.value.length, this.inputEl.value.length), 100)
+                                }
+                                if (key === "ArrowDown") {
+                                    this.inputEl.value = this.commandStack[this.commandStackIndex]
+                                    this.commandStackIndex >= this.commandStack.length - 1 ?
+                                        this.commandStackIndex = this.commandStack.length - 1 : this.commandStackIndex++
+                                    setTimeout(() => this.inputEl.setSelectionRange(this.inputEl.value.length, this.inputEl.value.length), 100)
+                                }
+                            }
+                            if (key === "Enter") {
+                                e.preventDefault()
+                                this.exec()
+                                this.inputLen = 0
+                            }
+                        }
+                        this.cursorInterval = setInterval(() => this.inputEl.focus(), 200)
+                        window.addEventListener("keydown", this.mainFuncRef)
+                    },
+                    deactive() {
+                        clearInterval(this.cursorInterval)
+                        window.removeEventListener("keydown", this.mainFuncRef)
+                        this.mainFuncRef = null
+                    },
+
+                })
+            }
+        })
+    </script>
+    <script>
+        const mainUrl = "http://192.168.4.1";
+        async function out() {
+            try {
+                const response = await fetch(mainUrl + "/out")
+                const json = await response.json()
+                return Promise.resolve(JSON.stringify(json))
+            } catch (error) {
+                Promise.reject(error)
+            }
+        }
+        window.addEventListener("load", () => {
+            const doesNotWorkMessage = "Aplicação não funciona nesta versão do nagegador! Atualize o navegador para um versão mais nova!"
+            if (!window.localStorage) alert(doesNotWorkMessage) 
+            const input = document.getElementById("input")
+            const output = document.getElementById("output")
+            const cursor = document.getElementById("cursor")
+            const mainCommands = [
+                {
+                    command: "out",
+                    func: out
+                },
+            ]
+            const mainCli = JScli.create(input, output, cursor, "photometer > ", mainCommands)
+            mainCli.active()
+        })
+    </script>
+</head>
+<body>
+    <div id="output"></div>
+    <div id="prompt">
+        <form>
+            <span id="cursor"> </span> <input id="input" type="text" autocomplete="off">
+        </form>
+    </div>
+</body>
+</html>
