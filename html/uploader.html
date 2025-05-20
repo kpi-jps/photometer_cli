@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Uploader</title>
+    <style>
+        body,
+        button,
+        input {
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+            font-size: 1rem;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        input[type=file] {
+            display: none;
+        }
+
+        body {
+            width: 600px;
+            margin: 5px auto;
+            border: 0 solid black;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        form {
+            margin: 0 auto;
+        }
+
+        .row {
+            padding: 10px 0;
+            margin: 10px 0;
+        }
+
+        button,
+        a {
+            padding: 10px;
+            border: 3px solid black;
+            border-radius: 5px;
+            background-color: black;
+            color: rgb(249, 248, 248);
+            font-weight: bold;
+        }
+
+        button:hover,
+        a:hover {
+            background-color: rgb(249, 248, 248);
+            color: black;
+        }
+
+        .rounded-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 100%;
+            padding: 0px;
+            background-color: black;
+            color: rgb(249, 248, 248);
+            text-align: center;
+        }
+
+        .rounded-btn:hover {
+            background-color: rgb(249, 248, 248);
+            color: black;
+        }
+
+        .file-info,
+        #upload-info {
+            color: lightseagreen;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>HTML Uploader</h2>
+    <form>
+        <div class="row input">
+            Upload html file:
+            <input type="file" id="file" accept="text/html">
+            <button id="upload" class="rounded-btn">&uarr;</button>
+            <small id="info" class="file-info"></small>
+        </div>
+        <div class="row">
+            <button id="send" class="input"> Send </button>
+        </div>
+        <div class="row" id="upload-info"></div>
+    </form>
+</body>
+<script>
+    let interval
+    const mainUrl = "http://192.168.4.1/"
+    const file = document.getElementById("file")
+    const info = document.getElementById("info")
+    const uploadInfo = document.getElementById("upload-info")
+    document.getElementById("upload").addEventListener("click", (e) => {
+        e.preventDefault()
+        file.click()
+        file.addEventListener("change", () => {
+            try {
+                const name = file.files[0].name
+                const size = Number(file.files[0].size)
+                info.innerText = `${name} (${size > 1024 ? (size / 1024).toFixed(0) + " Kb" : size + " bytes"})`
+            } catch (error) {
+                info.innerText = ""
+            }
+        })
+    })
+    document.getElementById("send").addEventListener("click", async (e) => {
+        e.preventDefault()
+        try {
+            const url = mainUrl + "upload/"
+            const files = document.getElementById("file").files
+            if (files.length === 0) {
+                alert("No file loaded!")
+                return
+            }
+            const file = files[0]
+            const fileContent = await file.text()
+            if (!fileContent) {
+                alert("Empty file content!")
+                return
+            }
+            const fileName = file.name
+            console.log(file.size)
+            interval = setInterval(() => {
+                const text = "Uploading"
+                uploadInfo.innerText = uploadInfo.innerText === "" ? text :
+                    uploadInfo.innerText.length < text.length + 3 ? uploadInfo.innerText + "." :
+                        uploadInfo.innerText = text;
+            }, 1000)
+            const origin = window.location.origin
+            const response = await fetch(`${url}${fileName}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": `${file.type}`,
+                    "Content-Length": file.size,
+                    "Origin": origin,
+                    "Content-Disposition": `attachment; filename=${fileName}`
+                },
+                body: fileContent,
+                mode: "cors"
+            })
+            console.log(response);
+            if (response.ok) {
+                clearInterval(interval)
+                uploadInfo.innerText = ""
+                alert("Upload complete!")
+            }
+            const json = await response.json();
+            console.log(json)
+            if (file.size !== json.bytes) alert("Something went wrong, update the file again!")
+        } catch (error) {
+            console.log(error)
+            clearInterval(interval)
+            uploadInfo.innerText = ""
+        }
+    })
+</script>
+
+</html>
