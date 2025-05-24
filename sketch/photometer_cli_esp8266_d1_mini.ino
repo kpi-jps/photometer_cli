@@ -2,7 +2,7 @@
 #include <FS.h>
 #include <LittleFS.h>
 
-const String SSID = "photometer_cli";
+const String SSID = "Photometer";
 const String pagesPath = "/pages/";
 bool connected = false;
 const int readingNumbers = 10;
@@ -227,7 +227,7 @@ void handleClient(WiFiClient client, String requestHeaders) {
   //get output
   if (requestHeaders.indexOf("GET /out") != -1) {
     String output = String(reading());
-    String content = "{\"millivots\":" + output + "}";
+    String content = "{\"millivolts\":" + output + "}";
     okResponse(client, content);
     return;
   }
